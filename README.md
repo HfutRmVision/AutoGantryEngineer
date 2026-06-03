@@ -1,10 +1,10 @@
 # AutoGantryEngineer
 
-基于 ROS 2 Humble 的**双机械臂龙门机器人**自主操控系统，面向 **RoboMaster 工程挑战赛**。结合 MoveIt Task Constructor (MTC) 运动规划与 BehaviorTree.CPP 行为树编排，实现全自动圆柱体抓取、推移及多轴旋转等复杂操作。
+基于 ROS 2 Humble 的**双机械臂龙门机器人**自主操控系统，面向 **RMUL2026**。结合 MoveIt Task Constructor (MTC) 运动规划与 BehaviorTree.CPP 行为树编排，实现全自动圆柱体抓取、推移及多轴旋转等复杂操作。
 
 ## 项目概述
 
-龙门工程师机器人是一种**双机械臂龙门式**操作平台，两个 6 自由度机械臂以镜像对称方式安装在共享的 X 轴水平导轨上，末端各装有一个两指夹爪。系统通过行为树编排 MTC 运动规划流水线，自主完成对齐、抓取、推移和多轴旋转等圆柱体操作任务序列。
+**双机械臂龙门式**操作平台，两个 6 自由度机械臂以镜像对称方式安装在共享的 X 轴水平导轨上，末端各装有一个两指夹爪。系统通过行为树编排 MTC 运动规划流水线，自主完成对齐、抓取、推移和多轴旋转等圆柱体操作任务序列。
 
 ### 硬件概览
 
@@ -24,7 +24,7 @@
 └─────────────┬───────────────┘
               │ tick (100 ms)
 ┌─────────────▼───────────────┐
-│  Phase 节点 (MTC)           │  Phase0: 对齐与加载
+│  Phase 节点 (MTC)            │  Phase0: 对齐与加载
 │  FuzzyPoseGenerator         │  Phase1: 推移
 │  CircularPathGenerator      │  Phase2: 圆弧旋转 (-90°)
 │  rankSolutionsByJoint       │  Phase3: Y轴旋转 (+45°)
@@ -91,6 +91,114 @@ model / models
     ▲
 gantry_*_moveit_config ─── bringup
 ```
+
+## 目录结构
+
+```
+ws_sim/
+├── src/
+│   ├── rm_interfaces/                       # 自定义消息与服务
+│   │   ├── msg/GimbalCmd.msg
+│   │   ├── msg/SerialReceiveData.msg
+│   │   └── srv/SetMode.srv
+│   ├── rm_serial_driver/                    # 串口通信驱动
+│   │   ├── include/rm_serial_driver/
+│   │   │   ├── fixed_packet.hpp             # 定长数据帧 (0xFF/0x0D)
+│   │   │   ├── fixed_packet_tool.hpp        # CRC 校验、组帧解帧
+│   │   │   ├── transporter_interface.hpp    # 传输层抽象接口
+│   │   │   ├── uart_transporter.hpp         # Linux termios UART 实现
+│   │   │   ├── protocol.hpp                 # 协议抽象层
+│   │   │   ├── protocol/engineer_protocol.hpp  # 工程机器人具体协议
+│   │   │   └── protocol_factory.hpp
+│   │   └── src/
+│   ├── gantry_robot_hardware_interface/     # ros2_control 硬件接口
+│   │   ├── include/.../gantry_robot_hardware_interface.hpp
+│   │   └── src/gantry_robot_hardware_interface.cpp
+│   ├── controller/                          # MTC 运动规划
+│   │   ├── include/controller/
+│   │   │   ├── mtc.hpp                      # MTC 基类（代价排序等）
+│   │   │   ├── fuzzy_pose_generator.hpp     # 模糊姿态生成器
+│   │   │   ├── circular_path_generator.hpp  # 圆弧路径生成
+│   │   │   ├── phase0_node.hpp              # 对齐与加载
+│   │   │   ├── phase1_node.hpp              # 推移
+│   │   │   ├── phase2_node.hpp              # 圆弧旋转 (-90°)
+│   │   │   ├── phase3_node.hpp              # Y轴旋转 (+45°)
+│   │   │   ├── phase_collection_node.hpp    # 组合阶段
+│   │   │   └── phase_test_node.hpp
+│   │   └── src/
+│   │       ├── controller_node.cpp          # 主入口
+│   │       └── recover_home_node.cpp        # 安全监控/自动归位
+│   ├── orchestrator/                        # 行为树编排
+│   │   ├── include/orchestrator/
+│   │   │   ├── orchestrator.hpp             # 编排器（阶段管理）
+│   │   │   ├── bt_mtc_nodes.hpp             # BT MTC 动作节点
+│   │   │   └── phase_interface.hpp          # 阶段状态机
+│   │   ├── config/gantry_task.xml           # 行为树 XML 定义
+│   │   └── src/bt_orchestrator_node.cpp     # BT 编排主节点
+│   ├── motion_planning_test/               # 测试与工具
+│   │   ├── src/ee_alignment_test.cpp        # 末端对齐测试
+│   │   ├── src/stand_random_pose.cpp        # 台架随机姿态
+│   │   └── src/target_scene_publisher.cpp   # 目标场景圆柱体发布
+│   ├── models/                              # 机器人模型（单臂 + 台架）
+│   │   ├── urdf/gantry_robot.xacro
+│   │   ├── urdf/stand.xacro
+│   │   └── meshes/                          # STL 网格文件
+│   ├── model/                               # 机器人模型（双臂）
+│   │   ├── urdf/gantry_engineer.urdf
+│   │   └── meshes/                          # 详细 STL 网格
+│   ├── bringup/                             # 启动与控制器配置
+│   ├── gantry_robot_moveit_config/          # 真机 MoveIt 配置
+│   ├── gantry_robot_moveit_config_sim/      # 仿真 MoveIt 配置
+│   └── gantry_engineer_moveit_config/       # 双臂 MoveIt 配置
+└── README.md
+```
+
+## ROS 2 接口
+
+### 话题
+
+| 话题 | 类型 | 方向 | 说明 |
+|------|------|------|------|
+| `/joint_states` | `sensor_msgs/JointState` | 发布 | 当前关节状态 |
+| `/display_planned_path` | `moveit_msgs/DisplayTrajectory` | 订阅 | 轨迹可视化（自动串口转发） |
+| `/orchestrator/phase` | `std_msgs/Int32` | 发布 | 当前阶段号 |
+| `/orchestrator/states` | `std_msgs/Int32` | 订阅 | 状态累积信号 |
+
+### 服务
+
+| 服务 | 类型 | 说明 |
+|------|------|------|
+| `/controller_manager/switch_controller` | `controller_manager_msgs/SwitchController` | 启停控制器 |
+| `/publish_target_3_1` | `std_srvs/Trigger` | 触发随机目标发布（测试用） |
+
+### Action
+
+| Action | 类型 | 说明 |
+|--------|------|------|
+| `/execute_task_solution` | `moveit_task_constructor_msgs/ExecuteTaskSolution` | MTC 任务方案执行 |
+| `/gantry_robot_controller/follow_joint_trajectory` | `control_msgs/FollowJointTrajectory` | 轨迹跟随控制 |
+
+### TF 帧
+
+| 帧名 | 说明 |
+|------|------|
+| `world` | 世界坐标系 |
+| `ipm` | 基准标记点 (Imaginary Point Marker) |
+| `x_rail` | X 轴导轨原点 |
+| `link1` ~ `link7` | 手臂连杆 |
+| `link7_1` | 右臂末端执行器 |
+| `cylinder_target_frame` | 目标圆柱体帧（由 target_scene_publisher 广播） |
+
+## 坐标变换
+
+MCU 原始值与 ROS SI 单位之间的变换在 `EngineerProtocol` 中处理：
+
+| 关节 | MCU → ROS | ROS → MCU |
+|------|-----------|------------|
+| Joint 1 (Z 轴) | `-(raw / 1000) - 0.3` | `-(pos + 0.3) * 1000` |
+| Joint 2, 3 (旋转) | `raw + 3.141592` | `pos - 3.141592` |
+| Joint 4–6 | `raw`（直通） | `pos`（直通） |
+
 
 ## 操作流水线
 
