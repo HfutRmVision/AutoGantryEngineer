@@ -21,6 +21,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "moveit_msgs/msg/display_trajectory.hpp"
 #include "controller_manager_msgs/srv/switch_controller.hpp"
+#include "rclcpp/publisher.hpp"
 
 namespace gantry_robot_hardware_interface
 {
@@ -314,7 +315,6 @@ void GantryRobotHardwareInterface::activate_jtc()
     RCLCPP_WARN(logger_, "Timeout waiting for JTC activation");
   }
 }
-
 
 }  // namespace gantry_robot_hardware_interface
 

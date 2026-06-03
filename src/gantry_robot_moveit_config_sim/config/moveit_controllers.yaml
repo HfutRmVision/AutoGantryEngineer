@@ -12,6 +12,7 @@ moveit_simple_controller_manager:
     default: true
     joints:
       - x_rail_joint
+      # - y_rail_joint
       - joint_1_2
       - joint_2_3
       - joint_3_4

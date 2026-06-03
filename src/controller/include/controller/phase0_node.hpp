@@ -11,6 +11,8 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2/utils.h"
 #include "tf2/LinearMath/Quaternion.h"
+#include "tf2/LinearMath/Vector3.h"
+#include <algorithm>
 
 class Phase0Node : public rclcpp::Node, public MTC {
 public:
@@ -21,7 +23,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "Waiting for TF...");
         while (rclcpp::ok()) {
             try {
-                tf_buffer_.lookupTransform("world", "link7", tf2::TimePointZero, std::chrono::seconds(1));
+                tf_buffer_.lookupTransform("world", "link7_1", tf2::TimePointZero, std::chrono::seconds(1));
                 tf_buffer_.lookupTransform("world", "cylinder_target_frame", tf2::TimePointZero, std::chrono::seconds(1));
                 RCLCPP_INFO(this->get_logger(), "TF available, starting task");
                 break;
@@ -49,6 +51,22 @@ private:
         }
     }
 
+    geometry_msgs::msg::PoseStamped getCurrentLink7Pose() {
+        geometry_msgs::msg::PoseStamped pose;
+        pose.header.frame_id = "world";
+        pose.header.stamp = this->now();
+        try {
+            const auto ee_tf = tf_buffer_.lookupTransform("world", "link7_1", tf2::TimePointZero);
+            pose.pose.position.x = ee_tf.transform.translation.x;
+            pose.pose.position.y = ee_tf.transform.translation.y;
+            pose.pose.position.z = ee_tf.transform.translation.z;
+            pose.pose.orientation = ee_tf.transform.rotation;
+        } catch (const std::exception & e) {
+            RCLCPP_WARN(this->get_logger(), "Could not get current link7 pose: %s", e.what());
+        }
+        return pose;
+    }
+
     void setup_planning_scene() override{
 
     }
@@ -61,13 +79,14 @@ private:
         sampling_planner->setMaxVelocityScalingFactor(0.5);
         sampling_planner->setProperty("planning_time", 5.0);
 
-        task.properties().set("group", "gantry_robot");
-        task.properties().set("ik_frame", "link7");
+        task.properties().set("group", "right_arm");
+        task.properties().set("ik_frame", "link7_1");
 
         auto cartesian_planner = std::make_shared<mtc::solvers::CartesianPath>();
         cartesian_planner->setMaxVelocityScalingFactor(0.5);
         cartesian_planner->setMaxAccelerationScalingFactor(0.5);
-        cartesian_planner->setStepSize(0.0001);
+        cartesian_planner->setStepSize(0.01);
+        cartesian_planner->setIKFrame("link7_1");
 
         mtc::Stage* current_state_ptr = nullptr;
         mtc::Stage* preload_state_ptr = nullptr;
@@ -79,7 +98,7 @@ private:
 
         {
             mtc::stages::Connect::GroupPlannerVector planners = {
-                {"gantry_robot", sampling_planner}
+                {"right_arm", sampling_planner}
             };
             auto stage = std::make_unique<mtc::stages::Connect>("move to preload", planners);
             stage->setTimeout(10.0);
@@ -88,8 +107,8 @@ private:
 
         {   
             auto generator = std::make_unique<FuzzyPoseGenerator>("fuzzy pose generator for preloading");
-            generator->setSampleCount(50);
-            generator->setTolerance(0.03, 0.3);
+            generator->setSampleCount(30);
+            generator->setTolerance(0.005, 0.2);
 
             geometry_msgs::msg::TransformStamped target_tf = get_tf();
             
@@ -114,7 +133,6 @@ private:
             goal_pose.pose.position.x += rotated_offset.x();
             goal_pose.pose.position.y += rotated_offset.y();
             goal_pose.pose.position.z += rotated_offset.z();
-
             goal_pose.pose.orientation = target_tf.transform.rotation;
 
             generator->setPose(goal_pose);
@@ -124,54 +142,22 @@ private:
             auto wrapper = std::make_unique<mtc::stages::ComputeIK>("compute ik for preloading", std::move(generator));
             wrapper->setMaxIKSolutions(8);
             wrapper->setMinSolutionDistance(1.0);
-            wrapper->setIKFrame("link7");
-            wrapper->setTargetPose(goal_pose);
+            wrapper->setIKFrame("link7_1");
             wrapper->properties().configureInitFrom(mtc::Stage::PARENT, { "group" });
-            wrapper->setIgnoreCollisions(true);
+            wrapper->properties().configureInitFrom(mtc::Stage::INTERFACE, { "target_pose" });
+            wrapper->setIgnoreCollisions(false);
             preload_state_ptr = wrapper.get();
             task.add(std::move(wrapper));
         }
 
         {
             mtc::stages::Connect::GroupPlannerVector planners = {
-                {"gantry_robot", sampling_planner}
+                {"right_arm", cartesian_planner}
             };
 
             auto stage = std::make_unique<mtc::stages::Connect>("move to load", planners);
             stage->setTimeout(10.0);
-
-            moveit_msgs::msg::Constraints path_constraints;
-            geometry_msgs::msg::TransformStamped target_tf = get_tf();
-
-
-            moveit_msgs::msg::OrientationConstraint ori_constraint;
-            ori_constraint.link_name = "link7";
-            ori_constraint.header.frame_id = "world";
-            ori_constraint.orientation = target_tf.transform.rotation;
-            ori_constraint.absolute_x_axis_tolerance = 0.1;
-            ori_constraint.absolute_y_axis_tolerance = 0.1;
-            ori_constraint.absolute_z_axis_tolerance = 3.14;
-
-            moveit_msgs::msg::PositionConstraint pos_constraint;
-            pos_constraint.link_name = "link7";
-            pos_constraint.header.frame_id = "world";
-            shape_msgs::msg::SolidPrimitive bounding_region;
-            bounding_region.type = shape_msgs::msg::SolidPrimitive::CYLINDER;
-            bounding_region.dimensions = {0.2, 0.03};
-            pos_constraint.constraint_region.primitives.push_back(bounding_region);
-            
-            geometry_msgs::msg::PoseStamped goal_pose;
-            goal_pose.header.frame_id = "world";
-            goal_pose.header.stamp = this->now();
-            goal_pose.pose.position.x = target_tf.transform.translation.x;
-            goal_pose.pose.position.y = target_tf.transform.translation.y;
-            goal_pose.pose.position.z = target_tf.transform.translation.z;
-            goal_pose.pose.orientation = target_tf.transform.rotation;
-            pos_constraint.constraint_region.primitive_poses.push_back(goal_pose.pose);
-
-            path_constraints.orientation_constraints.push_back(ori_constraint);
-            path_constraints.position_constraints.push_back(pos_constraint);
-            stage->setPathConstraints(path_constraints);
+            stage->properties().configureInitFrom(mtc::Stage::PARENT, { "group" });
 
             task.add(std::move(stage));
         }
@@ -179,7 +165,7 @@ private:
         {
             auto generator = std::make_unique<FuzzyPoseGenerator>("fuzzy pose generator for loading");
             generator->setSampleCount(20);
-            generator->setTolerance(0.002, 0.1);
+            generator->setTolerance(0.005, 0.2);
 
             geometry_msgs::msg::TransformStamped target_tf = get_tf();
             generator->setMonitoredStage(preload_state_ptr); 
@@ -198,13 +184,12 @@ private:
                 target_tf.transform.rotation.z,
                 target_tf.transform.rotation.w
             );
-            tf2::Vector3 z_offset(0.0, 0.0, -0.08);
+            tf2::Vector3 z_offset(0.0, 0.0, -0.05);
             tf2::Vector3 rotated_offset = tf2::quatRotate(q, z_offset);
             
             goal_pose.pose.position.x += rotated_offset.x();
             goal_pose.pose.position.y += rotated_offset.y();
             goal_pose.pose.position.z += rotated_offset.z();
-
             goal_pose.pose.orientation = target_tf.transform.rotation;
 
             generator->setPose(goal_pose);
@@ -213,9 +198,9 @@ private:
             auto wrapper = std::make_unique<mtc::stages::ComputeIK>("compute ik for loading", std::move(generator));
             wrapper->setMaxIKSolutions(2);
             wrapper->setMinSolutionDistance(1.0);
-            wrapper->setIKFrame("link7");
-            wrapper->setTargetPose(goal_pose);
+            wrapper->setIKFrame("link7_1");
             wrapper->properties().configureInitFrom(mtc::Stage::PARENT, { "group" });
+            wrapper->properties().configureInitFrom(mtc::Stage::INTERFACE, { "target_pose" });
             wrapper->setIgnoreCollisions(false);
             task.add(std::move(wrapper));
         }

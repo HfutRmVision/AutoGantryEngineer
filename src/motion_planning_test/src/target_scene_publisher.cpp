@@ -1,14 +1,10 @@
 /**
  * @file target_scene_publisher.cpp
- * @brief 发布 planning_scene，包含一个以 ipm 为参考系随机位姿的 cylinder target
- * 
- * Target 参数:
- * - 形状: cylinder (半径 0.018m, 长度 0.1m)
- * - 坐标原点: 底面中心（作为正面）
- * 
- * 随机位姿范围（相对于 ipm 坐标系）:
- * - 位置: x: [-0.1, 0.1]m, y: [-0.1, 0.1]m, z: [-0.1, 0]m
- * - 姿态: roll: [-45, 45]°, pitch: [-90, 0]°, yaw: [-90, 90]°
+ * @brief 发布 planning_scene，固定发布评审位姿 3.1 的 cylinder target
+ *
+ * 固定位姿 3.1（相对于 ipm）:
+ * - 位置: x=75mm, y=0mm, z=-24mm
+ * - 姿态: roll=-50°, pitch=-90°, yaw=45°
  */
 
 #include <rclcpp/rclcpp.hpp>
@@ -25,65 +21,47 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <std_srvs/srv/trigger.hpp>
-#include <random>
 #include <chrono>
+#include <array>
+#include <vector>
+#include <random>
 
 class TargetScenePublisher : public rclcpp::Node
 {
 public:
-    TargetScenePublisher() : Node("target_scene_publisher")
+    TargetScenePublisher()
+        : Node("target_scene_publisher"),
+          random_device_(),
+          random_engine_(random_device_()),
+          dist_x_(-0.100, 0.0),
+          dist_y_(0.100, 0.300),
+          dist_z_(0.500, 0.700),
+          dist_roll_deg_(-0.0, 0.0),
+          dist_pitch_deg_(-0.0, 0.0),
+          dist_yaw_deg_(-0.0, 0.0)
     {
         // 声明参数
         this->declare_parameter("reference_frame", "ipm");
         this->declare_parameter("target_name", "cylinder_target");
         this->declare_parameter("cylinder_radius", 0.018);
         this->declare_parameter("cylinder_length", 0.1);
-        this->declare_parameter("auto_publish", true);
-        this->declare_parameter("publish_interval", 5.0);  // 秒
-        
-        // 位置范围参数 (单位: mm，内部转换为 m)
-        this->declare_parameter("x_min", -100.0);
-        this->declare_parameter("x_max", 100.0);
-        this->declare_parameter("y_min", -100.0);
-        this->declare_parameter("y_max", 100.0);
-        this->declare_parameter("z_min", -100.0);
-        this->declare_parameter("z_max", 0.0);
-        
-        // 姿态范围参数 (单位: 度)
-        this->declare_parameter("roll_min", -45.0);
-        this->declare_parameter("roll_max", 45.0);
-        this->declare_parameter("pitch_min", -90.0);
-        this->declare_parameter("pitch_max", 0.0);
-        this->declare_parameter("yaw_min", -90.0);
-        this->declare_parameter("yaw_max", 90.0);
         
         // 获取参数
         reference_frame_ = this->get_parameter("reference_frame").as_string();
         target_name_ = this->get_parameter("target_name").as_string();
         cylinder_radius_ = this->get_parameter("cylinder_radius").as_double();
         cylinder_length_ = this->get_parameter("cylinder_length").as_double();
-        auto_publish_ = this->get_parameter("auto_publish").as_bool();
-        publish_interval_ = this->get_parameter("publish_interval").as_double();
-        
-        // 位置范围 (mm -> m)
-        x_min_ = this->get_parameter("x_min").as_double() / 1000.0;
-        x_max_ = this->get_parameter("x_max").as_double() / 1000.0;
-        y_min_ = this->get_parameter("y_min").as_double() / 1000.0;
-        y_max_ = this->get_parameter("y_max").as_double() / 1000.0;
-        z_min_ = this->get_parameter("z_min").as_double() / 1000.0;
-        z_max_ = this->get_parameter("z_max").as_double() / 1000.0;
-        
-        // 姿态范围 (度 -> 弧度)
-        roll_min_ = this->get_parameter("roll_min").as_double() * M_PI / 180.0;
-        roll_max_ = this->get_parameter("roll_max").as_double() * M_PI / 180.0;
-        pitch_min_ = this->get_parameter("pitch_min").as_double() * M_PI / 180.0;
-        pitch_max_ = this->get_parameter("pitch_max").as_double() * M_PI / 180.0;
-        yaw_min_ = this->get_parameter("yaw_min").as_double() * M_PI / 180.0;
-        yaw_max_ = this->get_parameter("yaw_max").as_double() * M_PI / 180.0;
-        
-        // 初始化随机数生成器
-        std::random_device rd;
-        rng_ = std::mt19937(rd());
+
+        // 评审位姿表: {x(mm), y(mm), z(mm), roll(deg), pitch(deg), yaw(deg)}
+        evaluation_poses_ = {
+            {0.0,   -50.0,  -25.0, -90.0,   0.0,   0.0},   // 1.1
+            {0.0,   -50.0,  -70.0, -90.0,   0.0,   0.0},   // 1.2
+            {0.0,   -25.0,  -50.0, -30.0, -20.0,  20.0},   // 2.1
+            {0.0,  -100.0,    0.0, -90.0, -45.0,  20.0},   // 2.2
+            {275.0, 600.0,  -24.0, -40.0, -90.0,  45.0},   // 3.1
+            {160.0, 500.0,  -48.0, -50.0,  90.0, -45.0}    // 3.2
+        };
+
         
         // TF2
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -94,21 +72,18 @@ public:
         planning_scene_pub_ = this->create_publisher<moveit_msgs::msg::PlanningScene>(
             "planning_scene", 10);
         
-        // 服务：手动触发生成新的随机 target
+        // 服务：手动触发重新发布随机位姿
         generate_target_service_ = this->create_service<std_srvs::srv::Trigger>(
-            "generate_random_target",
+            "publish_target_3_1",
             std::bind(&TargetScenePublisher::generateTargetCallback, this, 
                      std::placeholders::_1, std::placeholders::_2));
         
         RCLCPP_INFO(this->get_logger(), "Target Scene Publisher 初始化完成");
         RCLCPP_INFO(this->get_logger(), "参考坐标系: %s", reference_frame_.c_str());
         RCLCPP_INFO(this->get_logger(), "Cylinder: 半径=%.3fm, 长度=%.3fm", cylinder_radius_, cylinder_length_);
-        RCLCPP_INFO(this->get_logger(), "位置范围 (m): x[%.3f, %.3f], y[%.3f, %.3f], z[%.3f, %.3f]",
-                    x_min_, x_max_, y_min_, y_max_, z_min_, z_max_);
-        RCLCPP_INFO(this->get_logger(), "姿态范围 (deg): roll[%.1f, %.1f], pitch[%.1f, %.1f], yaw[%.1f, %.1f]",
-                    roll_min_ * 180.0 / M_PI, roll_max_ * 180.0 / M_PI,
-                    pitch_min_ * 180.0 / M_PI, pitch_max_ * 180.0 / M_PI,
-                    yaw_min_ * 180.0 / M_PI, yaw_max_ * 180.0 / M_PI);
+        RCLCPP_INFO(this->get_logger(), "发布模式: 随机发布位姿");
+        RCLCPP_INFO(this->get_logger(),
+                "随机范围: x(-100,0)mm, y(100,300)mm, z(500,700)mm, roll(-45,45)deg, pitch(-90,0)deg, yaw(-90,90)deg");
         
         // 延迟初始化，等待 MoveIt 和 TF 准备好
         init_timer_ = this->create_wall_timer(
@@ -120,55 +95,72 @@ private:
     void initCallback()
     {
         init_timer_->cancel();
-        
-        // 发布第一个 target
+
+        // 发布随机位姿
         publishRandomTarget();
         
         // 启动 TF 发布定时器，每 50ms 发布一次（20Hz）
         tf_timer_ = this->create_wall_timer(
             std::chrono::milliseconds(50),
             std::bind(&TargetScenePublisher::publishTargetTFTimer, this));
-        
-        // 如果启用自动发布，创建定时器
-        if (auto_publish_) {
-            publish_timer_ = this->create_wall_timer(
-                std::chrono::duration<double>(publish_interval_),
-                std::bind(&TargetScenePublisher::publishRandomTarget, this));
-            RCLCPP_INFO(this->get_logger(), "自动发布已启用，间隔: %.1f 秒", publish_interval_);
-        }
     }
-    
-    geometry_msgs::msg::Pose generateRandomPose()
+
+    geometry_msgs::msg::Pose buildPoseFromMetersAndDegrees(
+        double x_m,
+        double y_m,
+        double z_m,
+        double roll_deg,
+        double pitch_deg,
+        double yaw_deg) const
     {
         geometry_msgs::msg::Pose pose;
-        
-        // 随机位置
-        std::uniform_real_distribution<double> x_dist(x_min_, x_max_);
-        std::uniform_real_distribution<double> y_dist(y_min_, y_max_);
-        std::uniform_real_distribution<double> z_dist(z_min_, z_max_);
-        
-        pose.position.x = x_dist(rng_);
-        pose.position.y = y_dist(rng_);
-        pose.position.z = z_dist(rng_);
-        
-        // 随机姿态
-        std::uniform_real_distribution<double> roll_dist(roll_min_, roll_max_);
-        std::uniform_real_distribution<double> pitch_dist(pitch_min_, pitch_max_);
-        std::uniform_real_distribution<double> yaw_dist(yaw_min_, yaw_max_);
-        
-        double roll = roll_dist(rng_);
-        double pitch = pitch_dist(rng_);
-        double yaw = yaw_dist(rng_);
-        
-        tf2::Quaternion q;
-        q.setRPY(roll, pitch, yaw);
+        pose.position.x = x_m;
+        pose.position.y = y_m;
+        pose.position.z = z_m;
+
+        const double roll = roll_deg * M_PI / 180.0;
+        const double pitch = pitch_deg * M_PI / 180.0;
+        const double yaw = yaw_deg * M_PI / 180.0;
+
+        tf2::Quaternion q_roll, q_pitch, q_yaw;
+        q_roll.setRPY(roll, 0.0, 0.0);
+        q_pitch.setRPY(0.0, pitch, 0.0);
+        q_yaw.setRPY(0.0, 0.0, yaw);
+
+        tf2::Quaternion q = q_pitch * q_roll * q_yaw;
+        q.normalize();
         pose.orientation = tf2::toMsg(q);
+
+        return pose;
+    }
+
+    geometry_msgs::msg::Pose buildPoseFromEvaluation(const std::array<double, 6>& pose6) const
+    {
+        geometry_msgs::msg::Pose pose;
+
+        // mm -> m
+        pose.position.x = pose6[0] / 1000.0;
+        pose.position.y = pose6[1] / 1000.0;
+        pose.position.z = pose6[2] / 1000.0;
+
+        // deg -> rad
+        const double roll = pose6[3] * M_PI / 180.0;
+        const double pitch = pose6[4] * M_PI / 180.0;
+        const double yaw = pose6[5] * M_PI / 180.0;
         
-        RCLCPP_INFO(this->get_logger(), 
-            "生成随机位姿: pos(%.3f, %.3f, %.3f)m, rpy(%.1f, %.1f, %.1f)deg",
-            pose.position.x, pose.position.y, pose.position.z,
-            roll * 180.0 / M_PI, pitch * 180.0 / M_PI, yaw * 180.0 / M_PI);
+        // 1. 声明并生成三个纯净的单轴旋转（此时它们都严格参考 ipm）
+        tf2::Quaternion q_roll, q_pitch, q_yaw;
+        q_roll.setRPY(roll, 0.0, 0.0);   // 绕 ipm 的 X 轴
+        q_pitch.setRPY(0.0, pitch, 0.0); // 绕 ipm 的 Y 轴
+        q_yaw.setRPY(0.0, 0.0, yaw);     // 绕 ipm 的 Z 轴
+
+        // 2. 绕固定参考系 (ipm) 依次旋转：先 Yaw(Z) -> 再 Roll(X) -> 最后 Pitch(Y)
+        // 左乘法则： q = (最后一步 Roll) * (第二步 Pitch) * (第一步 Yaw)
+        tf2::Quaternion q = q_roll * q_pitch * q_yaw;
         
+        q.normalize();
+        pose.orientation = tf2::toMsg(q);
+
         return pose;
     }
     
@@ -214,11 +206,27 @@ private:
     
     void publishRandomTarget()
     {
-        // 生成随机位姿
-        geometry_msgs::msg::Pose random_pose = generateRandomPose();
-        
+        const double x_m = dist_x_(random_engine_);
+        const double y_m = dist_y_(random_engine_);
+        const double z_m = dist_z_(random_engine_);
+        const double roll_deg = dist_roll_deg_(random_engine_);
+        const double pitch_deg = dist_pitch_deg_(random_engine_);
+        const double yaw_deg = dist_yaw_deg_(random_engine_);
+
+        geometry_msgs::msg::Pose random_pose =
+            buildPoseFromMetersAndDegrees(x_m, y_m, z_m, roll_deg, pitch_deg, yaw_deg);
+
+        RCLCPP_INFO(this->get_logger(),
+                    "发布随机位姿: mm(%.1f, %.1f, %.1f), deg(%.1f, %.1f, %.1f)",
+                    x_m * 1000.0, y_m * 1000.0, z_m * 1000.0,
+                    roll_deg, pitch_deg, yaw_deg);
+        publishTargetByPose(random_pose, "随机位姿");
+    }
+
+    void publishTargetByPose(const geometry_msgs::msg::Pose& pose, const std::string& source)
+    {
         // 创建 collision object
-        moveit_msgs::msg::CollisionObject target = createCylinderTarget(random_pose);
+        moveit_msgs::msg::CollisionObject target = createCylinderTarget(pose);
         
         // 创建 planning scene 消息
         moveit_msgs::msg::PlanningScene planning_scene_msg;
@@ -228,14 +236,14 @@ private:
         // 发布
         planning_scene_pub_->publish(planning_scene_msg);
         
-        RCLCPP_INFO(this->get_logger(), "已发布 cylinder target '%s' 到 planning scene", 
-                    target_name_.c_str());
+        RCLCPP_INFO(this->get_logger(), "已发布 %s cylinder target '%s' 到 planning scene", 
+                source.c_str(), target_name_.c_str());
         
         // 保存当前 target 位姿（相对于参考系的原始位姿，底面中心）
-        current_target_pose_ = random_pose;
+        current_target_pose_ = pose;
         
         // 发布 TF 以显示坐标轴
-        publishTargetTF(random_pose);
+        publishTargetTF(pose);
     }
     
     void publishTargetTF(const geometry_msgs::msg::Pose& pose)
@@ -248,7 +256,18 @@ private:
         transform.transform.translation.x = pose.position.x;
         transform.transform.translation.y = pose.position.y;
         transform.transform.translation.z = pose.position.z;
-        transform.transform.rotation = pose.orientation;
+
+        // 圆柱几何仍使用局部 Z 轴作为轴向；仅对发布的 target frame 做轴重映射：
+        // 让 "底面法线方向" 在 target frame 中对应 X 轴（原来对应 Z 轴）。
+        tf2::Quaternion q_pose;
+        tf2::fromMsg(pose.orientation, q_pose);
+
+        tf2::Quaternion q_axis_remap;
+        q_axis_remap.setRPY(0.0, -M_PI / 2.0, 0.0);  // local X -> old local Z
+
+        tf2::Quaternion q_tf = q_pose * q_axis_remap;
+        q_tf.normalize();
+        transform.transform.rotation = tf2::toMsg(q_tf);
         
         tf_broadcaster_->sendTransform(transform);
     }
@@ -264,8 +283,8 @@ private:
         std::shared_ptr<std_srvs::srv::Trigger::Response> response)
     {
         publishRandomTarget();
+        response->message = "已重新发布随机位姿";
         response->success = true;
-        response->message = "已生成新的随机 target";
     }
     
     void removeTarget()
@@ -290,19 +309,6 @@ private:
     std::string target_name_;
     double cylinder_radius_;
     double cylinder_length_;
-    bool auto_publish_;
-    double publish_interval_;
-    
-    // 随机范围
-    double x_min_, x_max_;
-    double y_min_, y_max_;
-    double z_min_, z_max_;
-    double roll_min_, roll_max_;
-    double pitch_min_, pitch_max_;
-    double yaw_min_, yaw_max_;
-    
-    // 随机数生成器
-    std::mt19937 rng_;
     
     // TF2
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -317,11 +323,24 @@ private:
     
     // Timers
     rclcpp::TimerBase::SharedPtr init_timer_;
-    rclcpp::TimerBase::SharedPtr publish_timer_;
     rclcpp::TimerBase::SharedPtr tf_timer_;
     
     // 当前 target 位姿
     geometry_msgs::msg::Pose current_target_pose_;
+
+    // 评审位姿表（保留，固定使用 3.1）
+    std::vector<std::array<double, 6>> evaluation_poses_;
+    const size_t fixed_evaluation_index_ = 5;  // 3.2
+
+    // 随机位姿生成器
+    std::random_device random_device_;
+    std::mt19937 random_engine_;
+    std::uniform_real_distribution<double> dist_x_;
+    std::uniform_real_distribution<double> dist_y_;
+    std::uniform_real_distribution<double> dist_z_;
+    std::uniform_real_distribution<double> dist_roll_deg_;
+    std::uniform_real_distribution<double> dist_pitch_deg_;
+    std::uniform_real_distribution<double> dist_yaw_deg_;
 };
 
 int main(int argc, char** argv)

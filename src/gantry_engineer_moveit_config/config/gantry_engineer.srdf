@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--This does not replace URDF, and is not an extension of URDF.
+    This is a format for representing semantic information about the robot structure.
+    A URDF file must exist for this robot as well, where the joints and the links that are referenced are defined
+-->
+<robot name="gantry_engineer">
+    <!--GROUPS: Representation of a set of joints and links. This can be useful for specifying DOF to plan for, defining arms, end effectors, etc-->
+    <!--LINKS: When a link is specified, the parent joint of that link (if it exists) is automatically included-->
+    <!--JOINTS: When a joint is specified, the child link of that joint (which will always exist) is automatically included-->
+    <!--CHAINS: When a chain is specified, all the links along the chain (including endpoints) are included in the group. Additionally, all the joints that are parents to included links are also included. This means that joints along the chain and the parent joint of the base link are included in the group-->
+    <!--SUBGROUPS: Groups can also be formed by referencing to already defined group names-->
+    <group name="right_arm">
+        <link name="link7_1"/>
+        <joint name="x_rail_joint"/>
+        <joint name="joint_link1_link2"/>
+        <joint name="joint_link2_link3_1"/>
+        <joint name="joint_link3_1_link4_1"/>
+        <joint name="joint_link4_1_link5_1"/>
+        <joint name="joint_link5_1_link6_1"/>
+        <joint name="joint_link6_1_link7_1"/>
+    </group>
+    <group name="left_arm">
+        <link name="link7_2"/>
+        <joint name="x_rail_joint"/>
+        <joint name="joint_link1_link2"/>
+        <joint name="joint_link2_link3_2"/>
+        <joint name="joint_link3_2_link4_2"/>
+        <joint name="joint_link4_2_link5_2"/>
+        <joint name="joint_link5_2_link6_2"/>
+        <joint name="joint_link6_2_link7_2"/>
+    </group>
+    <group name="dual_arm">
+        <joint name="x_rail_joint"/>
+        <joint name="joint_link1_link2"/>
+        <joint name="joint_link2_link3_1"/>
+        <joint name="joint_link3_1_link4_1"/>
+        <joint name="joint_link4_1_link5_1"/>
+        <joint name="joint_link5_1_link6_1"/>
+        <joint name="joint_link6_1_link7_1"/>
+        <joint name="joint_link2_link3_2"/>
+        <joint name="joint_link3_2_link4_2"/>
+        <joint name="joint_link4_2_link5_2"/>
+        <joint name="joint_link5_2_link6_2"/>
+        <joint name="joint_link6_2_link7_2"/>
+    </group>
+    <group name="right_gripper">
+        <joint name="joint_link7_1_link8_1_1"/>
+        <joint name="joint_link7_1_link8_1_2"/>
+    </group>
+    <group name="left_gripper">
+        <joint name="joint_link7_2_link8_2_1"/>
+        <joint name="joint_link7_2_link8_2_2"/>
+    </group>
+    <!--GROUP STATES: Purpose: Define a named state for a particular group, in terms of joint values. This is useful to define states like 'folded arms'-->
+    <group_state name="home" group="dual_arm">
+        <joint name="joint_link1_link2" value="0"/>
+        <joint name="joint_link2_link3_1" value="0"/>
+        <joint name="joint_link2_link3_2" value="0"/>
+        <joint name="joint_link3_1_link4_1" value="0"/>
+        <joint name="joint_link3_2_link4_2" value="0"/>
+        <joint name="joint_link4_1_link5_1" value="0"/>
+        <joint name="joint_link4_2_link5_2" value="0"/>
+        <joint name="joint_link5_1_link6_1" value="0"/>
+        <joint name="joint_link5_2_link6_2" value="0"/>
+        <joint name="joint_link6_1_link7_1" value="0"/>
+        <joint name="joint_link6_2_link7_2" value="0"/>
+        <joint name="x_rail_joint" value="0"/>
+    </group_state>
+    <group_state name="home_right" group="right_arm">
+        <joint name="joint_link1_link2" value="0"/>
+        <joint name="joint_link2_link3_1" value="0"/>
+        <joint name="joint_link3_1_link4_1" value="0"/>
+        <joint name="joint_link4_1_link5_1" value="0"/>
+        <joint name="joint_link5_1_link6_1" value="0"/>
+        <joint name="joint_link6_1_link7_1" value="0"/>
+        <joint name="x_rail_joint" value="0"/>
+    </group_state>
+    <group_state name="home_left" group="left_arm">
+        <joint name="joint_link1_link2" value="0"/>
+        <joint name="joint_link2_link3_2" value="0"/>
+        <joint name="joint_link3_2_link4_2" value="0"/>
+        <joint name="joint_link4_2_link5_2" value="0"/>
+        <joint name="joint_link5_2_link6_2" value="0"/>
+        <joint name="joint_link6_2_link7_2" value="0"/>
+        <joint name="x_rail_joint" value="0"/>
+    </group_state>
+    <group_state name="close_right" group="right_gripper">
+        <joint name="joint_link7_1_link8_1_1" value="0"/>
+    </group_state>
+    <group_state name="close_left" group="left_gripper">
+        <joint name="joint_link7_2_link8_2_1" value="0"/>
+    </group_state>
+    <group_state name="open_right" group="right_gripper">
+        <joint name="joint_link7_1_link8_1_1" value="-0.02"/>
+    </group_state>
+    <group_state name="open_left" group="left_gripper">
+        <joint name="joint_link7_2_link8_2_1" value="-0.02"/>
+    </group_state>
+    <!--END EFFECTOR: Purpose: Represent information about an end effector.-->
+    <end_effector name="right_gripper" parent_link="link7_1" group="right_gripper" parent_group="right_arm"/>
+    <end_effector name="left_gripper" parent_link="link7_2" group="left_gripper" parent_group="left_arm"/>
+    <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
+    <disable_collisions link1="link1" link2="link3_1" reason="Never"/>
+    <disable_collisions link1="link1" link2="link3_2" reason="Never"/>
+    <disable_collisions link1="link1" link2="x_rail" reason="Adjacent"/>
+    <disable_collisions link1="link2" link2="link3_1" reason="Adjacent"/>
+    <disable_collisions link1="link2" link2="link3_2" reason="Adjacent"/>
+    <disable_collisions link1="link3_1" link2="link3_2" reason="Never"/>
+    <disable_collisions link1="link3_1" link2="link4_1" reason="Adjacent"/>
+    <disable_collisions link1="link3_1" link2="link4_2" reason="Never"/>
+    <disable_collisions link1="link3_1" link2="link5_2" reason="Never"/>
+    <disable_collisions link1="link3_2" link2="link4_1" reason="Never"/>
+    <disable_collisions link1="link3_2" link2="link4_2" reason="Adjacent"/>
+    <disable_collisions link1="link3_2" link2="link5_1" reason="Never"/>
+    <disable_collisions link1="link4_1" link2="link5_1" reason="Adjacent"/>
+    <disable_collisions link1="link4_2" link2="link5_2" reason="Adjacent"/>
+    <disable_collisions link1="link5_1" link2="link6_1" reason="Adjacent"/>
+    <disable_collisions link1="link5_2" link2="link6_2" reason="Adjacent"/>
+    <disable_collisions link1="link6_1" link2="link7_1" reason="Adjacent"/>
+    <disable_collisions link1="link6_2" link2="link7_2" reason="Adjacent"/>
+    <disable_collisions link1="link7_1" link2="link8_1_1" reason="Adjacent"/>
+    <disable_collisions link1="link7_1" link2="link8_1_2" reason="Adjacent"/>
+    <disable_collisions link1="link7_2" link2="link8_2_1" reason="Adjacent"/>
+    <disable_collisions link1="link7_2" link2="link8_2_2" reason="Adjacent"/>
+    <disable_collisions link1="link8_1_1" link2="link8_1_2" reason="Never"/>
+    <disable_collisions link1="link8_2_1" link2="link8_2_2" reason="Never"/>
+</robot>

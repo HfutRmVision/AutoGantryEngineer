@@ -7,6 +7,7 @@
 #include <controller/phase0_node.hpp>
 #include <controller/phase1_node.hpp>
 #include <controller/phase2_node.hpp>
+#include <controller/phase3_node.hpp>
 
 #include <future>
 #include <memory>
@@ -179,6 +180,34 @@ protected:
 private:
     rclcpp::Node::SharedPtr node_;
     std::shared_ptr<Phase2Node> phase2_instance_;
+};
+
+/**
+ * @brief Phase 3 - Y轴旋转 45° 阶段的 MTC 执行节点
+ */
+class ExecutePhase3 : public MTCActionNode {
+public:
+    ExecutePhase3(const std::string& name, const BT::NodeConfiguration& config,
+                  rclcpp::Node::SharedPtr node)
+        : MTCActionNode(name, config), node_(node) {}
+
+protected:
+    MTCExecutionResult executePhase() override {
+        RCLCPP_INFO(node_->get_logger(), "Starting Phase 3: Y-Axis Rotation (+45 deg)");
+
+        try {
+            auto options = makePhaseNodeOptions(node_);
+            phase3_instance_ = std::make_shared<Phase3Node>(uniqueNodeName("phase3_node"), options);
+            return {true, ""};
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(node_->get_logger(), "Phase 3 failed: %s", e.what());
+            return {false, e.what()};
+        }
+    }
+
+private:
+    rclcpp::Node::SharedPtr node_;
+    std::shared_ptr<Phase3Node> phase3_instance_;
 };
 
 /**

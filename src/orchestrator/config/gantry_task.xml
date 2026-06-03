@@ -22,6 +22,13 @@
                              success="{phase2_success}" 
                              error_msg="{phase2_error}"/>
             </Sequence>
+
+            <Sequence name="Phase3_YAxisRotation">
+                <PublishPhase name="SetPhase3" phase="3"/>
+                <ExecutePhase3 name="MTC_YAxisRotation"
+                             success="{phase3_success}"
+                             error_msg="{phase3_error}"/>
+            </Sequence>
         </Sequence>
     </BehaviorTree>
 

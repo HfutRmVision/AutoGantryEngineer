@@ -4,7 +4,7 @@ from moveit_configs_utils import MoveItConfigsBuilder
 
 
 def generate_launch_description():
-    moveit_config = MoveItConfigsBuilder("gantry_robot", package_name="gantry_robot_moveit_config_sim").to_moveit_configs()
+    moveit_config = MoveItConfigsBuilder("gantry_engineer", package_name="moveit_config").to_moveit_configs()
 
     # Controller node
     controller_node = Node(

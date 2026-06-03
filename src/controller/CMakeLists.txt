@@ -9,6 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(moveit_task_constructor_core REQUIRED)
+find_package(moveit_ros_planning_interface REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -26,7 +27,18 @@ ament_target_dependencies(controller_node
   tf2_geometry_msgs
 )
 
+add_executable(recover_home_node src/recover_home_node.cpp)
+ament_target_dependencies(recover_home_node
+  rclcpp
+  moveit_ros_planning_interface
+  std_msgs
+)
+
 target_include_directories(controller_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
+target_include_directories(recover_home_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
@@ -43,7 +55,7 @@ if(BUILD_TESTING)
 endif()
 
 install(
-  TARGETS controller_node
+  TARGETS controller_node recover_home_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -61,6 +73,7 @@ ament_export_include_directories(include)
 ament_export_dependencies(
   rclcpp
   moveit_task_constructor_core
+  moveit_ros_planning_interface
   std_msgs
   geometry_msgs
   tf2_ros

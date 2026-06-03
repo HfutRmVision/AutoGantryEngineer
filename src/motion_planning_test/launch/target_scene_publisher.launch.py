@@ -49,6 +49,7 @@ def generate_launch_description():
             'cylinder_length': 0.1,
             'auto_publish': LaunchConfiguration('auto_publish'),
             'publish_interval': LaunchConfiguration('publish_interval'),
+            'use_evaluation_poses': False,
             # 位置范围 (mm)
             'x_min': -100.0,
             'x_max': 100.0,

@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: model
+    relative_path: urdf/gantry_engineer.urdf
+  srdf:
+    relative_path: config/gantry_engineer.srdf
+  package_settings:
+    author_name: Ofinel Loong
+    author_email: ofinel188@gmail.com
+    generated_timestamp: 1774627384
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity

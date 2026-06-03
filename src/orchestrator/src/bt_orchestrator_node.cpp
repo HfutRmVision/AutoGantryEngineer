@@ -52,6 +52,12 @@ public:
                 return std::make_unique<orchestrator::ExecutePhase2>(name, config, node_ptr);
             });
 
+        factory_->registerBuilder<orchestrator::ExecutePhase3>(
+            "ExecutePhase3",
+            [node_ptr](const std::string& name, const BT::NodeConfiguration& config) {
+                return std::make_unique<orchestrator::ExecutePhase3>(name, config, node_ptr);
+            });
+
         factory_->registerBuilder<orchestrator::PublishPhaseNode>(
             "PublishPhase",
             [node_ptr](const std::string& name, const BT::NodeConfiguration& config) {

@@ -106,7 +106,7 @@ def generate_launch_description():
         parameters=[
             moveit_config.to_dict(),
             {"capabilities": "move_group/ExecuteTaskSolutionCapability"},
-            {"use_sim_time": False},
+            {"use_sim_time": True},
         ],
     )
 
@@ -132,6 +132,26 @@ def generate_launch_description():
         ],
     )
 
+    recover_home_node = Node(
+        package="controller",
+        executable="recover_home_node",
+        name="recover_home_node",
+        output="screen",
+        parameters=[
+            moveit_config.robot_description,
+            moveit_config.robot_description_semantic,
+            moveit_config.robot_description_kinematics,
+            moveit_config.planning_pipelines,
+            moveit_config.joint_limits,
+            {"use_sim_time": True},
+        ],
+    )
+
+    delayed_recover_home_node = TimerAction(
+        period=8.0,
+        actions=[recover_home_node],
+    )
+
     return LaunchDescription([
         serial_port_arg,
         baud_rate_arg,
@@ -142,5 +162,6 @@ def generate_launch_description():
         delayed_joint_state_broadcaster_spawner,
         delayed_gantry_robot_controller_spawner,
         move_group_node,
+        delayed_recover_home_node,
         rviz_node,
     ])

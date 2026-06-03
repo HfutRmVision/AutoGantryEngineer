@@ -5,7 +5,7 @@ from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
     moveit_config = MoveItConfigsBuilder(
-        "gantry_robot", package_name="gantry_robot_moveit_config_sim"
+        "gantry_robot", package_name="gantry_engineer_moveit_config"
     ).to_moveit_configs()
 
     bt_orchestrator_node = Node(
@@ -18,6 +18,7 @@ def generate_launch_description():
             moveit_config.robot_description_kinematics,
             moveit_config.joint_limits,
             moveit_config.planning_pipelines,
+            moveit_config.pilz_cartesian_limits,
             {"tick_rate_ms": 100},
             {"use_sim_time": True},
         ],

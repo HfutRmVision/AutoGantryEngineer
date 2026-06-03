@@ -1,0 +1,17 @@
+# Default initial positions for gantry_engineer's ros2_control fake system
+
+initial_positions:
+  joint_link1_link2: 0
+  joint_link2_link3_1: 0
+  joint_link2_link3_2: 0
+  joint_link3_1_link4_1: 0
+  joint_link3_2_link4_2: 0
+  joint_link4_1_link5_1: 0
+  joint_link4_2_link5_2: 0
+  joint_link5_1_link6_1: 0
+  joint_link5_2_link6_2: 0
+  joint_link6_1_link7_1: 0
+  joint_link6_2_link7_2: 0
+  joint_link7_1_link8_1_1: 0
+  joint_link7_2_link8_2_1: 0
+  x_rail_joint: 0
