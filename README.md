@@ -1,78 +1,78 @@
 # AutoGantryEngineer
 
-Autonomous dual-arm gantry robot manipulation system for the **RoboMaster** engineering challenge. Built on ROS 2 Humble with MoveIt Task Constructor (MTC) motion planning and BehaviorTree.CPP task orchestration.
+基于 ROS 2 Humble 的**双机械臂龙门机器人**自主操控系统，面向 **RoboMaster 工程挑战赛**。结合 MoveIt Task Constructor (MTC) 运动规划与 BehaviorTree.CPP 行为树编排，实现全自动圆柱体抓取、推移及多轴旋转等复杂操作。
 
-## Overview
+## 项目概述
 
-The gantry engineer robot is a **dual-arm gantry manipulator** with a shared horizontal X-rail and two mirror-symmetric 6-DOF arms, each ending in a two-finger gripper. The system performs autonomous cylinder manipulation sequences — alignment, grasping, pushing, and multi-axis rotation — through a behavior-tree-orchestrated pipeline of MTC motion planning stages.
+龙门工程师机器人是一种**双机械臂龙门式**操作平台，两个 6 自由度机械臂以镜像对称方式安装在共享的 X 轴水平导轨上，末端各装有一个两指夹爪。系统通过行为树编排 MTC 运动规划流水线，自主完成对齐、抓取、推移和多轴旋转等圆柱体操作任务序列。
 
-### Hardware
+### 硬件概览
 
-- **Base**: Prismatic X-rail gantry (range -0.4 m ~ +0.2 m)
-- **Each arm**: 6 revolute joints + 1 prismatic gripper joint (mimic fingers)
-- **Total DOF**: 13 controllable joints + 2 grippers
-- **End effector**: Two-finger gripper with 20 mm range
-- **Lower-level MCU**: STM32 communicating over UART serial (115200 baud, 8N1)
-- **Sensors**: Joint position/velocity feedback from MCU
+- **底座**: X 轴直线导轨龙门（行程 -0.4 m ~ +0.2 m）
+- **单臂**: 6 个旋转关节 + 1 个夹爪关节（联动手指）
+- **总自由度**: 13 个可控关节 + 2 个夹爪
+- **末端执行器**: 双指夹爪，开合范围 20 mm
+- **下位机**: STM32，通过 UART 串口通信（115200 baud, 8N1）
+- **传感器**: MCU 反馈的关节位置/速度
 
-## Architecture
+## 系统架构
 
 ```
-┌─────────────────────────┐
-│  BehaviorTree.CPP       │  Task orchestration
-│  bt_orchestrator_node   │  Phase sequencing
-└───────────┬─────────────┘
-            │ tick (100 ms)
-┌───────────▼─────────────┐
-│  Phase Nodes (MTC)      │  Phase0: Align & Load
-│  FuzzyPoseGenerator     │  Phase1: Push
-│  CircularPathGenerator  │  Phase2: Circular Rotation (-90°)
-│  rankSolutionsByJoint   │  Phase3: Y-axis Rotation (+45°)
-│  MotionCost             │
-└───────────┬─────────────┘
-            │ /execute_task_solution
-┌───────────▼─────────────┐
-│  MoveIt 2 + MTC         │  TRAC-IK kinematics
-│  move_group             │  OMPL / Pilz planners
-└───────────┬─────────────┘
-            │ joint_trajectory_controller
-┌───────────▼─────────────┐
-│  ros2_control           │  JointTrajectoryController
-│  controller_manager     │  + JointStateBroadcaster
-└───────────┬─────────────┘
-            │ write() / read()
-┌───────────▼─────────────┐
-│  GantryRobotHardware     │  ros2_control SystemInterface
-│  Interface              │  6 joints (position cmd/state)
-└───────────┬─────────────┘
-            │ EngineerProtocol
-┌───────────▼─────────────┐
-│  rm_serial_driver       │  FixedPacket<64> + CRC-16
-│  UartTransporter        │  /dev/ttyACM0 @ 115200
-└───────────┬─────────────┘
-            │ UART
-┌───────────▼─────────────┐
-│  STM32 MCU              │  Low-level motor control
-└─────────────────────────┘
+┌─────────────────────────────┐
+│  BehaviorTree.CPP           │  行为树任务编排
+│  bt_orchestrator_node       │  阶段（Phase）调度
+└─────────────┬───────────────┘
+              │ tick (100 ms)
+┌─────────────▼───────────────┐
+│  Phase 节点 (MTC)           │  Phase0: 对齐与加载
+│  FuzzyPoseGenerator         │  Phase1: 推移
+│  CircularPathGenerator      │  Phase2: 圆弧旋转 (-90°)
+│  rankSolutionsByJoint       │  Phase3: Y轴旋转 (+45°)
+│  MotionCost                 │
+└─────────────┬───────────────┘
+              │ /execute_task_solution
+┌─────────────▼───────────────┐
+│  MoveIt 2 + MTC             │  TRAC-IK 运动学求解
+│  move_group                 │  OMPL / Pilz 规划器
+└─────────────┬───────────────┘
+              │ joint_trajectory_controller
+┌─────────────▼───────────────┐
+│  ros2_control               │  JointTrajectoryController
+│  controller_manager         │  + JointStateBroadcaster
+└─────────────┬───────────────┘
+              │ write() / read()
+┌─────────────▼───────────────┐
+│  GantryRobotHardware         │  ros2_control SystemInterface
+│  Interface                  │  6 关节（位置指令/状态）
+└─────────────┬───────────────┘
+              │ EngineerProtocol
+┌─────────────▼───────────────┐
+│  rm_serial_driver           │  FixedPacket<64> + CRC-16
+│  UartTransporter            │  /dev/ttyACM0 @ 115200
+└─────────────┬───────────────┘
+              │ UART
+┌─────────────▼───────────────┐
+│  STM32 MCU                  │  底层电机控制
+└─────────────────────────────┘
 ```
 
-## Packages
+## 功能包说明
 
-| Package | Description |
-|---------|-------------|
-| `rm_interfaces` | Custom ROS 2 messages (`GimbalCmd`, `SerialReceiveData`) and services (`SetMode`) |
-| `rm_serial_driver` | UART serial communication library: packet framing (0xFF/0x0D), CRC-16, protocol abstraction, transport interface |
-| `gantry_robot_hardware_interface` | ros2_control `SystemInterface` plugin — bridges JointTrajectoryController to MCU via serial protocol |
-| `controller` | MoveIt Task Constructor (MTC) phase nodes: fuzzy pose generation, circular path planning, joint-motion cost ranking |
-| `orchestrator` | BehaviorTree.CPP v4 nodes — executes the 4-phase manipulation sequence as a BT |
-| `motion_planning_test` | Test nodes: end-effector alignment, stand random pose, target scene publisher |
-| `model` / `models` | Robot URDF/Xacro descriptions and STL meshes (dual-arm + single-arm + stand) |
-| `gantry_robot_moveit_config` | MoveIt 2 configuration for real hardware (TRAC-IK, joint limits, controllers) |
-| `gantry_robot_moveit_config_sim` | MoveIt 2 configuration for simulation |
-| `gantry_engineer_moveit_config` | MoveIt 2 configuration for the dual-arm "engineer" variant |
-| `bringup` | Launch files and ros2_control YAML configuration |
+| 功能包 | 说明 |
+|--------|------|
+| `rm_interfaces` | 自定义 ROS 2 消息（`GimbalCmd`, `SerialReceiveData`）与服务（`SetMode`） |
+| `rm_serial_driver` | UART 串口通信库：数据帧封装（0xFF/0x0D）、CRC-16 校验、协议抽象层、传输接口 |
+| `gantry_robot_hardware_interface` | ros2_control `SystemInterface` 插件 —— 桥接 JointTrajectoryController 与 MCU 串口协议 |
+| `controller` | MoveIt Task Constructor (MTC) 阶段节点：模糊姿态生成、圆弧路径规划、关节运动代价排序 |
+| `orchestrator` | BehaviorTree.CPP v4 节点 —— 以行为树形式执行四阶段操作序列 |
+| `motion_planning_test` | 测试节点：末端对齐测试、台架随机姿态测试、目标场景发布器 |
+| `model` / `models` | 机器人 URDF/Xacro 模型描述与 STL 网格（双臂 + 单臂 + 台架） |
+| `gantry_robot_moveit_config` | 真机 MoveIt 2 配置（TRAC-IK、关节限位、控制器） |
+| `gantry_robot_moveit_config_sim` | 仿真 MoveIt 2 配置 |
+| `gantry_engineer_moveit_config` | 双臂 "Engineer" 变体 MoveIt 2 配置 |
+| `bringup` | Launch 启动文件与 ros2_control YAML 配置 |
 
-## Dependency Graph
+## 依赖关系图
 
 ```
 rm_interfaces
@@ -92,75 +92,80 @@ model / models
 gantry_*_moveit_config ─── bringup
 ```
 
-## Manipulation Pipeline
+## 操作流水线
 
-The Behavior Tree (`src/orchestrator/config/gantry_task.xml`) executes four phases in sequence:
+行为树（`src/orchestrator/config/gantry_task.xml`）按顺序执行四个阶段：
 
-### Phase 0 — Align & Load
-- Waits for `cylinder_target_frame` and `link7_1` TF transforms
-- Moves from current state to preload position (sampling planner, +3 cm Z offset)
-- **Fuzzy Pose Generation**: Samples 30 noisy IK targets around the nominal pose (uniform noise within position/orientation tolerance, ±60° yaw range)
-- Moves down to load position (Cartesian planner, -5 cm Z) and attaches the cylinder object
+### Phase 0 —— 对齐与加载
 
-### Phase 1 — Push
-- Attaches the cylinder to the end effector in the planning scene
-- Pushes the cylinder 0.1 m along its local Y-axis
-- Uses sampling planner at reduced velocity (0.1×) for safe motion
-- **Fuzzy Pose Generation**: 50 samples around the push goal pose
+- 等待 `cylinder_target_frame` 与 `link7_1` 的 TF 变换
+- 从当前状态移动到预加载位置（采样规划器，Z 轴 +3 cm 偏移）
+- **模糊姿态生成**：在名义姿态周围采样 30 个含噪声的 IK 目标（位置/姿态容差内均匀噪声，偏航角 ±60° 范围）
+- 下降到加载位置（笛卡尔规划器，Z 轴 -5 cm），将圆柱体附加到末端执行器上
 
-### Phase 2 — Circular Rotation (-90°)
-- Detaches the cylinder, repositions, re-grasps
-- Generates an arc path using **Rodrigues' rotation formula**
-- Pivot axis: offset (y=108 mm, z=-169 mm) from cylinder origin
-- 12 Cartesian waypoints over -90° rotation
-- **Fallback**: On failure, moves to last plannable waypoint, then recovers to `home_gr`
-- **Joint-motion cost ranking**: Heavily penalizes X-rail movement (65% weight) vs. arm joints (35% weight)
+### Phase 1 —— 推移
 
-### Phase 3 — Y-axis Rotation (+45°)
-- Detaches, repositions, re-grasps
-- Two alternative planning strategies attempted:
-  - **Strategy A**: Pilz CIRC circular motion planner with interim sphere constraint (5 mm radius)
-  - **Strategy B**: 24-step Cartesian path (1.5 mm step size)
-- Rotation axis: local Y-axis of derived target frame, Z-offset -54 mm
-- Fallback to `home_gr` on failure
+- 在规划场景中将圆柱体附加到末端执行器
+- 沿圆柱体本地 Y 轴方向推移 0.1 m
+- 使用减速采样规划器（0.1× 速度）确保安全运动
+- **模糊姿态生成**：在推移目标姿态周围采样 50 个候选解
 
-### Safety
-- `recover_home_node` monitors end-effector Z-height at 5 Hz
-- If Z drops below `recover_z_threshold` (default 45 mm), auto-plans and executes motion to `home_gr`
+### Phase 2 —— 圆弧旋转（-90°）
 
-## Serial Protocol
+- 分离圆柱体、重新定位、重新抓取
+- 基于 **Rodrigues 旋转公式** 生成圆弧路径
+- 旋转轴偏移：圆柱体原点 (y=108 mm, z=-169 mm)
+- 12 个笛卡尔路径点，覆盖 -90° 旋转
+- **降级策略**：规划失败时移动到最后可规划的路径点，然后回到 `home_gr`
+- **关节运动代价排序**：大幅惩罚 X 导轨运动（65% 权重）vs. 臂关节运动（35% 权重）
 
-**Physical**: UART, 115200 baud, 8N1, `/dev/ttyACM0`
+### Phase 3 —— Y 轴旋转（+45°）
 
-**Packet** (`FixedPacket<64>`):
+- 分离、重新定位、重新抓取
+- 尝试两种可选规划策略：
+  - **策略 A**：Pilz CIRC 圆弧运动规划器，带中间球体约束（半径 5 mm）
+  - **策略 B**：24 步笛卡尔路径（步长 1.5 mm）
+- 旋转轴：导出目标帧的本地 Y 轴，Z 偏移 -54 mm
+- 规划失败时降级回到 `home_gr`
+
+### 安全保护
+
+- `recover_home_node` 以 5 Hz 频率监控末端执行器 Z 轴高度
+- 若 Z 轴低于 `recover_z_threshold`（默认 45 mm），自动规划并执行回到 `home_gr` 的运动
+
+## 串口通信协议
+
+**物理层**: UART, 115200 baud, 8N1, `/dev/ttyACM0`
+
+**数据帧** (`FixedPacket<64>`):
 
 ```
-┌──────┬──────┬───────────┬──────────────┬───────┬──────┐
-│ 0xFF │ mode │ positions │  velocities  │ CRC16 │ 0x0D │
-│ (1B) │ (1B) │  (6×4B)   │   (6×4B)     │ (2B)  │ (1B) │
-└──────┴──────┴───────────┴──────────────┴───────┴──────┘
+┌──────┬──────┬────────────┬──────────────┬───────┬──────┐
+│ 0xFF │ mode │ positions  │  velocities  │ CRC16 │ 0x0D │
+│ (1B) │ (1B) │  (6×4B)    │   (6×4B)     │ (2B)  │ (1B) │
+└──────┴──────┴────────────┴──────────────┴───────┴──────┘
 ```
 
-- **mode**: `3` = ros2_control active
-- **positions/velocities**: float32, 6 joints
-- **CRC-16**: CCITT polynomial
-- Coordinate transforms between MCU (mm, raw) and ROS (m, SI) are handled in `EngineerProtocol`
+- **mode**: `3` = ros2_control 激活
+- **positions/velocities**: float32，6 个关节
+- **CRC-16**: CCITT 多项式
+- MCU（mm，原始值）与 ROS（m，SI 单位）之间的坐标变换在 `EngineerProtocol` 中处理
 
-**Auto-send**: `EngineerProtocol` subscribes to `/display_planned_path` and streams trajectory points over serial with 50 ms spacing.
+**自动发送**: `EngineerProtocol` 订阅 `/display_planned_path` 话题，以 50 ms 间隔通过串口流式发送轨迹点。
 
-## Getting Started
+## 快速开始
 
-### Prerequisites
+### 环境要求
 
 - Ubuntu 22.04
 - ROS 2 Humble
 - MoveIt 2 + MoveIt Task Constructor
 - ros2_control + ros2_controllers
 - BehaviorTree.CPP v4
-- TRAC-IK kinematics plugin
-- Pilz industrial motion planner (optional, for Phase 3)
+- TRAC-IK 运动学插件
+- Pilz industrial motion planner（可选，用于 Phase 3）
 
-### Build
+### 编译
 
 ```bash
 cd ~/ws_sim
@@ -168,72 +173,71 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-### Run
+### 运行
 
-**1. Real Hardware (with MCU connected)**
+**1. 真机模式（连接 MCU）**
 
 ```bash
-# Launch MoveIt + ros2_control
+# 启动 MoveIt + ros2_control
 ros2 launch gantry_robot_moveit_config demo.launch.py
 
-# Launch the Behavior Tree orchestrator
+# 启动行为树编排器
 ros2 launch orchestrator bt_orchestrator.launch.py
 
-# (Optional) Publish a target scene object
+# （可选）发布目标场景物体
 ros2 launch motion_planning_test target_scene_publisher.launch.py
 ```
 
-**2. Simulation (no hardware)**
+**2. 仿真模式（无需硬件）**
 
 ```bash
-# Launch MoveIt in simulation mode
+# 以仿真模式启动 MoveIt
 ros2 launch gantry_robot_moveit_config_sim demo.launch.py
 
-# Launch the BT orchestrator (with sim config)
+# 启动行为树编排器
 ros2 launch orchestrator bt_orchestrator.launch.py
 ```
 
-**3. Running with the dual-arm "engineer" config**
+**3. 双臂 "Engineer" 配置模式**
 
 ```bash
 ros2 launch gantry_engineer_moveit_config demo.launch.py
 ros2 launch orchestrator bt_orchestrator.launch.py
 ```
 
-### Test Nodes
+### 测试节点
 
 ```bash
-# End-effector alignment test (gantry → stand)
+# 末端对齐测试（龙门臂 → 台架）
 ros2 run motion_planning_test ee_alignment_test
 
-# Stand random pose test
+# 台架随机姿态测试
 ros2 run motion_planning_test stand_random_pose
 
-# Serial driver test
+# 串口驱动测试
 ros2 run orchestrator serial_test_node
 ```
 
-## Configuration
+## 可调参数
 
-Key parameters to tune:
+| 参数 | 位置 | 说明 |
+|------|------|------|
+| 串口设备 | `gantry_robot_hardware_interface` | `/dev/ttyACM0` —— 可切换至其他端口 |
+| 关节限位 | `gantry_robot_moveit_config/config/joint_limits.yaml` | 速度/加速度限制 |
+| 恢复 Z 阈值 | `recover_home_node` | 默认 0.045 m —— 触发自动恢复 |
+| 模糊采样数 | Phase 0–3 节点 | 20–50 个样本 —— 越多规划越优但越慢 |
+| MTC 规划尝试次数 | `MTC::doTask()` | 默认 5 —— 提高鲁棒性 |
+| 速度缩放 | Phase 1 连接阶段 | 0.1 —— 推移过程中的安全减速 |
+| 导轨运动代价权重 | `rankSolutionsByJointMotionCost()` | 0.65 —— 越大越倾向使用臂关节而非导轨 |
 
-| Parameter | File | Description |
-|-----------|------|-------------|
-| Serial port | `gantry_robot_hardware_interface` | `/dev/ttyACM0` — change if using different port |
-| Joint limits | `gantry_robot_moveit_config/config/joint_limits.yaml` | Velocity/acceleration limits |
-| Recovery Z threshold | `recover_home_node` | Default 0.045 m — triggers auto-recovery |
-| Fuzzy sample count | Phase nodes (0–3) | 20–50 samples — more = better plans, slower |
-| MTC planning attempts | `MTC::doTask()` | Default 5 — increases robustness |
-| Vel scaling | Phase 1 connect stage | 0.1 — safety slowdown during pushing |
-| Rail motion cost weight | `rankSolutionsByJointMotionCost()` | 0.65 — higher = prefer arm motion over rail |
+## 相关仓库
 
-## Related Repositories
+本项目属于 HfutRmVision RoboMaster 生态系统，使用了以下组件：
 
-This project is part of the HfutRmVision RoboMaster ecosystem and uses components adapted from:
-- RoboMaster serial communication protocol (FYT Vision Group template)
-- MoveIt Task Constructor framework
+- RoboMaster 串口通信协议（FYT Vision Group 模板）
+- MoveIt Task Constructor 框架
 - BehaviorTree.CPP v4
 
-## License
+## 许可证
 
-This project is developed by the HfutRmVision team for RoboMaster competition use.
+本项目由 HfutRmVision 团队开发，用于 RoboMaster 竞赛。
