@@ -337,15 +337,3 @@ ros2 run orchestrator serial_test_node
 | MTC 规划尝试次数 | `MTC::doTask()` | 默认 5 —— 提高鲁棒性 |
 | 速度缩放 | Phase 1 连接阶段 | 0.1 —— 推移过程中的安全减速 |
 | 导轨运动代价权重 | `rankSolutionsByJointMotionCost()` | 0.65 —— 越大越倾向使用臂关节而非导轨 |
-
-## 相关仓库
-
-本项目属于 HfutRmVision RoboMaster 生态系统，使用了以下组件：
-
-- RoboMaster 串口通信协议（FYT Vision Group 模板）
-- MoveIt Task Constructor 框架
-- BehaviorTree.CPP v4
-
-## 许可证
-
-本项目由 HfutRmVision 团队开发，用于 RoboMaster 竞赛。
