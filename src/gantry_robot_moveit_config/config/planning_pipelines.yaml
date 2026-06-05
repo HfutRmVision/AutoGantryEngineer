@@ -1,0 +1,14 @@
+planning_pipelines:
+  ros__parameters:
+    planning_plugins:
+      - ompl_interface/OMPLPlanner
+      - pilz_industrial_motion_planner/CommandPlanner
+    request_adapters:
+      - default_planner_request_adapters/FixWorkspaceBounds
+      - default_planner_request_adapters/FixStartStateBounds
+      - default_planner_request_adapters/FixStartStateCollision
+      - default_planner_request_adapters/FixStartStatePathConstraints
+    response_adapters:
+      - default_planner_request_adapters/AddTimeOptimalParameterization
+      - default_planner_request_adapters/FixSolutionDegree
+      - default_planner_request_adapters/ResolveConstraintFrames

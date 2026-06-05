@@ -1,0 +1,29 @@
+planner_configs:
+  RRTConnectkConfigDefault:
+    type: geometric::RRTConnect
+    range: 0.0
+  RRTkConfigDefault:
+    type: geometric::RRT
+    range: 0.0
+  ESTkConfigDefault:
+    type: geometric::EST
+    range: 0.0
+  LBKPIECEkConfigDefault:
+    type: geometric::LBKPIECE
+    range: 0.0
+  KPIECEkConfigDefault:
+    type: geometric::KPIECE
+    range: 0.0
+  BKPIECEkConfigDefault:
+    type: geometric::BKPIECE
+    range: 0.0
+
+gantry_robot:
+  planner_configs:
+    - RRTConnectkConfigDefault
+    - RRTkConfigDefault
+    - ESTkConfigDefault
+    - LBKPIECEkConfigDefault
+  allowed_planning_time: 10.0
+  max_goal_samples: 10
+  max_goal_samples_percentage: 0.1

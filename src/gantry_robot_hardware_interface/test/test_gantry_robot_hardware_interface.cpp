@@ -14,11 +14,13 @@
 
 #include <gmock/gmock.h>
 
+#include <memory>
 #include <string>
 
 #include "hardware_interface/resource_manager.hpp"
 #include "ros2_control_test_assets/components_urdfs.hpp"
 #include "ros2_control_test_assets/descriptions.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 class TestGantryRobotHardwareInterface : public ::testing::Test
 {
@@ -53,5 +55,7 @@ TEST_F(TestGantryRobotHardwareInterface, load_gantry_robot_hardware_interface_2d
 {
   auto urdf = ros2_control_test_assets::urdf_head + gantry_robot_hardware_interface_2dof_ +
               ros2_control_test_assets::urdf_tail;
-  ASSERT_NO_THROW(hardware_interface::ResourceManager rm(urdf));
+  auto clock = std::make_shared<rclcpp::Clock>(RCL_ROS_TIME);
+  auto logger = rclcpp::get_logger("test_gantry_hardware");
+  ASSERT_NO_THROW(hardware_interface::ResourceManager rm(urdf, clock, logger, true, 0));
 }

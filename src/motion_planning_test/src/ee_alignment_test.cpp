@@ -340,8 +340,8 @@ public:
     }
     
     RCLCPP_INFO(this->get_logger(), "✓ 第一阶段规划成功！");
-    RCLCPP_INFO(this->get_logger(), "  轨迹点数: %zu", plan_phase1.trajectory_.joint_trajectory.points.size());
-    RCLCPP_INFO(this->get_logger(), "  规划时间: %.2f 秒", plan_phase1.planning_time_);
+    RCLCPP_INFO(this->get_logger(), "  轨迹点数: %zu", plan_phase1.trajectory.joint_trajectory.points.size());
+    RCLCPP_INFO(this->get_logger(), "  规划时间: %.2f 秒", plan_phase1.planning_time);
     
     // 执行第一阶段运动
     RCLCPP_INFO(this->get_logger(), "\n执行第一阶段运动...");
@@ -385,10 +385,10 @@ public:
     
     moveit_msgs::msg::RobotTrajectory trajectory;
     const double eef_step = 0.01;  // 1cm步长
-    const double jump_threshold = 0.0;  // 禁用跳跃检测
+    
     
     double fraction = gantry_move_group->computeCartesianPath(
-        waypoints, eef_step, jump_threshold, trajectory);
+        waypoints, eef_step, trajectory);
     
     if (fraction < 0.95) {
       RCLCPP_WARN(this->get_logger(), "⚠ 笛卡尔路径规划部分成功: %.1f%%", fraction * 100.0);
@@ -419,7 +419,7 @@ public:
       
       // 执行笛卡尔路径
       moveit::planning_interface::MoveGroupInterface::Plan plan_phase2;
-      plan_phase2.trajectory_ = trajectory;
+      plan_phase2.trajectory = trajectory;
       
       auto execute_result_phase2 = gantry_move_group->execute(plan_phase2);
       

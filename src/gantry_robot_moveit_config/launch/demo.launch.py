@@ -106,7 +106,7 @@ def generate_launch_description():
         parameters=[
             moveit_config.to_dict(),
             {"capabilities": "move_group/ExecuteTaskSolutionCapability"},
-            {"use_sim_time": True},
+            {"use_sim_time": False},
         ],
     )
 
@@ -116,7 +116,7 @@ def generate_launch_description():
         "config",
         "moveit.rviz"
     )
-    
+
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
@@ -143,7 +143,7 @@ def generate_launch_description():
             moveit_config.robot_description_kinematics,
             moveit_config.planning_pipelines,
             moveit_config.joint_limits,
-            {"use_sim_time": True},
+            {"use_sim_time": False},
         ],
     )
 

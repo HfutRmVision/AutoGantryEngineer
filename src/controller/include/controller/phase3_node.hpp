@@ -267,7 +267,7 @@ private:
         sampling_planner->setProperty("planning_time", 10.0);
 
         auto pilz_planner = std::make_shared<mtc::solvers::PipelinePlanner>(MTC::getNodeSharedPtr());
-        pilz_planner->setPlannerId("CIRC");
+        pilz_planner->setPlannerId("pilz_industrial_motion_planner", "CIRC");
         pilz_planner->setProperty("planning_pipeline", std::string("pilz_industrial_motion_planner"));
         pilz_planner->setProperty("planning_time", 10.0);
         pilz_planner->setMaxVelocityScalingFactor(0.1);

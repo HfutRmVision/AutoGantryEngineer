@@ -20,7 +20,7 @@ find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 
 # Find BehaviorTree.CPP
-find_package(behaviortree_cpp REQUIRED PATHS /usr/local/share/behaviortree_cpp/cmake)
+find_package(behaviortree_cpp REQUIRED)
 
 add_executable(serial_test_node src/serial_test_node.cpp)
 ament_target_dependencies(serial_test_node 
